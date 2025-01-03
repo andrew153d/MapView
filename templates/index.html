@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+
+        #zoomButton {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #zoomButton:hover {
+            background-color: rgba(255, 255, 255, 1);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <button id="zoomButton">Zoom to Markers</button>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize the map
+        const map = L.map('map').setView([0, 0], 2);
+
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Object to store markers
+        const markers = {};
+
+        // Function to add or update a marker
+        function updateMarker(id, lat, lng, details) {
+            const customIcon = L.icon({
+            iconUrl: "{{url_for('static', filename='plane.png')}}", // Replace with the path to your custom icon
+            iconSize: [25, 25], // Size of the icon
+            iconAnchor: [12, 12], // Point of the icon which will correspond to marker's location
+            popupAnchor: [1, -34], // Point from which the popup should open relative to the iconAnchor
+            //shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png', // Optional shadow
+            shadowSize: [41, 41], // Size of the shadow
+            shadowAnchor: [12, 41] // Point of the shadow which will correspond to marker's location
+            });
+
+            if (markers[id]) {
+            markers[id].setLatLng([lat, lng]);
+            markers[id].setIcon(customIcon);
+            markers[id].bindPopup(`<b>ID:</b> ${id}<br><b>Latitude:</b> ${lat}<br><b>Longitude:</b> ${lng}<br><b>Details:</b><pre>${JSON.stringify(details, null, 2)}</pre>`);
+            } else {
+            markers[id] = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+            markers[id].bindPopup(`<b>ID:</b> ${id}<br><b>Latitude:</b> ${lat}<br><b>Longitude:</b> ${lng}<br><b>Details:</b><pre>${JSON.stringify(details, null, 2)}</pre>`);
+            }
+        }
+
+        // Function to zoom to the markers
+        function zoomToMarkers() {
+            const group = new L.featureGroup(Object.values(markers)); // Create a feature group from all markers
+            map.fitBounds(group.getBounds()); // Fit the map bounds to the markers
+        }
+
+        // Function to fetch location data from the Flask server
+        async function fetchLocations() {
+            try {
+                const response = await fetch('/api/locations'); // Adjust endpoint as needed
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const locations = await response.json();
+
+                locations.forEach(location => {
+                    if (location.id && location.lat && location.lng) {
+                        updateMarker(location.id, location.lat, location.lng, location.details);
+                    }
+                });
+            } catch (error) {
+                console.error('Error fetching locations:', error);
+            }
+        }
+
+        // Poll the server periodically to update locations
+        setInterval(fetchLocations, 500);
+
+        // Initial fetch to populate the map
+        fetchLocations();
+
+        // Event listener for the zoom button
+        document.getElementById('zoomButton').addEventListener('click', zoomToMarkers);
+    </script>
+</body>
+
+</html>
